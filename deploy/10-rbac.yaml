@@ -1,0 +1,43 @@
+# Least privilege: the agent gets rights ONLY inside allowlisted namespaces (Role, not ClusterRole).
+# To manage another namespace, copy the Role + RoleBinding below into it.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: healer-agent
+  namespace: self-healing
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: healer
+  namespace: demo
+rules:
+  - apiGroups: [""]
+    resources: [pods, pods/log, events]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [replicasets]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [deployments]
+    verbs: [get, list, watch, patch]       # patch = restart + rollback
+  - apiGroups: [apps]
+    resources: [deployments/scale]
+    verbs: [get, patch]
+  - apiGroups: [autoscaling]
+    resources: [horizontalpodautoscalers]
+    verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: healer
+  namespace: demo
+subjects:
+  - kind: ServiceAccount
+    name: healer-agent
+    namespace: self-healing
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: healer

@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-app
+  namespace: demo
+  labels:
+    app: demo-app
+    self-healing: enabled          # opt-in: the agent ignores deployments without this label
+spec:
+  replicas: 2
+  revisionHistoryLimit: 10         # rollback needs history
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  selector:
+    matchLabels: { app: demo-app }
+  template:
+    metadata:
+      labels: { app: demo-app }
+    spec:
+      containers:
+        - name: app
+          image: demo-app:dev      # NOT :latest -> default pull policy stays IfNotPresent (needed for kind load)
+          imagePullPolicy: IfNotPresent
+          ports: [{ name: http, containerPort: 8000 }]
+          env:
+            - { name: CRASH_ON_START, value: "false" }
+            - { name: LEAK_MEMORY, value: "false" }
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 3
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { cpu: 200m, memory: 128Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-app
+  namespace: demo
+  labels: { app: demo-app }
+spec:
+  selector: { app: demo-app }
+  ports: [{ name: http, port: 80, targetPort: http }]
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: demo-app
+  namespace: demo
+spec:
+  selector:
+    matchLabels: { app: demo-app }
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s

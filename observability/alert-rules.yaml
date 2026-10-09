@@ -1,0 +1,53 @@
+# Every rule carries `healer: "true"` so Alertmanager routes it to the agent.
+# Scope: namespace=~"demo". To onboard another namespace, edit the regex here AND the agent's
+# HEALER_ALLOWED_NAMESPACES AND add RBAC (see README "Onboarding your own app").
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: self-healing-rules
+  namespace: monitoring
+spec:
+  groups:
+    - name: self-healing
+      rules:
+        - alert: PodCrashLooping
+          expr: kube_pod_container_status_waiting_reason{namespace=~"demo",reason="CrashLoopBackOff"} == 1
+          for: 30s
+          labels: { severity: critical, healer: "true" }
+          annotations:
+            summary: "{{ $labels.namespace }}/{{ $labels.pod }} is in CrashLoopBackOff"
+
+        - alert: PodImagePullFailure
+          expr: kube_pod_container_status_waiting_reason{namespace=~"demo",reason=~"ImagePullBackOff|ErrImagePull"} == 1
+          for: 30s
+          labels: { severity: critical, healer: "true" }
+          annotations:
+            summary: "{{ $labels.namespace }}/{{ $labels.pod }} cannot pull its image"
+
+        - alert: PodOOMKilled
+          expr: |
+            kube_pod_container_status_last_terminated_reason{namespace=~"demo",reason="OOMKilled"} == 1
+            and on (namespace, pod, container)
+            increase(kube_pod_container_status_restarts_total{namespace=~"demo"}[5m]) > 0
+          for: 0m
+          labels: { severity: warning, healer: "true" }
+          annotations:
+            summary: "{{ $labels.namespace }}/{{ $labels.pod }} was OOMKilled recently"
+
+        - alert: HighCPU
+          expr: |
+            sum by (namespace, pod) (rate(container_cpu_usage_seconds_total{namespace=~"demo",container!=""}[1m]))
+            /
+            sum by (namespace, pod) (kube_pod_container_resource_limits{namespace=~"demo",resource="cpu"})
+            > 0.85
+          for: 1m
+          labels: { severity: warning, healer: "true" }
+          annotations:
+            summary: "{{ $labels.namespace }}/{{ $labels.pod }} is using >85% of its CPU limit"
+
+        - alert: DeploymentUnavailable
+          expr: kube_deployment_status_replicas_available{namespace=~"demo"} < kube_deployment_spec_replicas{namespace=~"demo"}
+          for: 1m
+          labels: { severity: critical, healer: "true" }
+          annotations:
+            summary: "{{ $labels.namespace }}/{{ $labels.deployment }} has fewer available replicas than desired"

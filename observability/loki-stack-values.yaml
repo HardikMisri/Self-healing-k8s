@@ -1,0 +1,9 @@
+# grafana/loki-stack is deprecated upstream but still the simplest "Loki + Promtail" for a lab.
+# Release name MUST be "loki" (agent default: http://loki.monitoring.svc:3100).
+loki:
+  enabled: true
+  persistence: { enabled: false }
+promtail:
+  enabled: true
+grafana: { enabled: false }
+prometheus: { enabled: false }

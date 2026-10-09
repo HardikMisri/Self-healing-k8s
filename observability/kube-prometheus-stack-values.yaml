@@ -1,0 +1,55 @@
+# Tuned for a local kind cluster. Release name MUST be "kps" (the agent defaults assume
+# http://kps-prometheus.monitoring.svc:9090).
+fullnameOverride: kps
+
+# kind binds these control-plane components to localhost; scraping them only makes noisy alerts.
+kubeControllerManager: { enabled: false }
+kubeScheduler: { enabled: false }
+kubeEtcd: { enabled: false }
+kubeProxy: { enabled: false }
+
+prometheus:
+  prometheusSpec:
+    scrapeInterval: 15s
+    evaluationInterval: 15s
+    retention: 6h
+    # pick up OUR ServiceMonitors / PrometheusRules without a "release: kps" label
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    resources:
+      requests: { cpu: 100m, memory: 400Mi }
+
+grafana:
+  adminPassword: admin            # local demo only - change for anything shared
+  sidecar:
+    dashboards: { enabled: true, label: grafana_dashboard, searchNamespace: ALL }
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      uid: loki
+      access: proxy
+      url: http://loki.monitoring.svc:3100
+      isDefault: false
+
+alertmanager:
+  config:
+    route:
+      receiver: "null"
+      group_by: [alertname, namespace]
+      group_wait: 10s
+      group_interval: 1m
+      repeat_interval: 10m
+      routes:
+        - receiver: healer
+          matchers: ['healer = "true"']
+          continue: false
+    receivers:
+      - name: "null"
+      - name: healer
+        webhook_configs:
+          - url: http://healer-agent.self-healing.svc:8080/alerts
+            send_resolved: false
+            # If you set HEALER_WEBHOOK_TOKEN, also add:
+            # http_config:
+            #   authorization: { type: Bearer, credentials: <token> }
