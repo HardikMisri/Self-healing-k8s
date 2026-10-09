@@ -1,10 +1,5 @@
 <!-- make incidents -->
 
-kubectl --context kind-self-healing -n self-healing exec deploy/healer-agent -- sh -c 'for f in $(ls -t /data/incidents/_.md 2>/dev/null | head -3); do echo "=== $f"; cat $f; done'
-hardikmisri@Hardiks-MacBook-Air self-healing-k8s % make incidents
-kubectl --context kind-self-healing -n self-healing exec deploy/healer-agent -- sh -c 'for f in $(ls -t /data/incidents/_.md 2>/dev/null | head -3); do echo "=== $f"; cat $f; done'
-=== /data/incidents/238eaf9b.md
-
 # Incident 238eaf9b: PodCrashLooping on demo/demo-app
 
 - **Time:** 2026-10-09T11:20:20+00:00
